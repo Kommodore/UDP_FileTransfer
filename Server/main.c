@@ -1,5 +1,7 @@
 #include <stdio.h>
-#include <zconf.h>
+//#include <zconf.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <string.h>
@@ -52,6 +54,9 @@ void establish_connection(SessionInfo* client, SessionInfo* new_client)
 {
     char out[256];
     int i;
+
+    printf("Connection Established!");
+
     for(i = 0; i < MAX_CONNECTIONS; i++)
     {
         if(client[i].session_closed == 1)
@@ -82,6 +87,7 @@ int main()
     SocketInfo reciever;
     SessionInfo client;
     char method[256];
+    char number[256];
     SessionInfo client_list[MAX_CONNECTIONS];
 
     for(int i = 0; i < MAX_CONNECTIONS; i++){
@@ -100,13 +106,27 @@ int main()
         char in[MAXLINE];
         reciever.addr_len = sizeof(reciever.addr);
 
+        unsigned int temp;
+
+        memset(in, '\0', MAXLINE);
+        memset(method, '\0', 256);
+        memset(number, '\0', 256);
+
         ssize_t n = recvfrom(server.sock_fd, in, MAXLINE, 0, (struct sockaddr*)& reciever.addr, (socklen_t *)&reciever.addr_len);
 
-        sscanf(in, "%s;%u;%s", method, &client.chunk_size, client.filename); // NOLINT
+        sscanf(in, "%[^;];%[^;];%s", method, number, client.filename); // NOLINT
 
-        printf("Requested Method: %s\nTransmitting %s with %u bytes per chunk",method, client.filename, client.chunk_size);
+        client.chunk_size = atoi(number);
 
-        if(strcmp("HSOSSTP_INITX", method) == 0){
+        printf("FULLMSG: %s\n", in);
+
+        printf("METHOD: %s\n", method);
+        printf("CHUNKSIZE: %d\n", client.chunk_size);
+        printf("FILENAME: %s\nCHUNKSIZE: %d", client.filename, client.chunk_size);
+
+        printf("Hello World");
+        if(strcmp("HSOSSTP_INITX", method) == 0)
+        {
             establish_connection(client_list, &client);
         }
 

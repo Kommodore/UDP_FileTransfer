@@ -51,8 +51,9 @@ int main(int argc, char **argv) {
 		{ 
 			printf("Fehler beim Lesen des Sockets!\n");
             exit(1);
-		} 
+        }
 
+    
         printf("ANS: %s\n", in);
     }
     
