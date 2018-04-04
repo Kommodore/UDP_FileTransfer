@@ -6,6 +6,9 @@
 #include <netinet/in.h>
 
 #define SERVER_PORT 8999
+#define MAX_CONNECTIONS 256
+
+unsigned int static_count = 0;
 
 typedef struct SocketInfo
 {
@@ -14,11 +17,14 @@ typedef struct SocketInfo
     struct sockaddr_in addr;
 } SocketInfo;
 
-typedef struct ConnectionInfo
+typedef struct SessionInfo
 {
-    char fileSize[256];
-    unsigned long chunk_size;
-} ConnectionInfo;
+    int session_id;
+    char filename[256];
+    unsigned int chunk_size;
+    unsigned int session_closed;
+    SocketInfo socketinfo;
+} SessionInfo;
 
 void start_server(SocketInfo *server, int port)
 {
@@ -42,13 +48,49 @@ void start_server(SocketInfo *server, int port)
     }
 }
 
-int main() {
-    SocketInfo server_info;
-    SocketInfo client_info;
+void establish_connection(SessionInfo* client, SessionInfo* new_client)
+{
+    char out[256];
+    int i;
+    for(i = 0; i < MAX_CONNECTIONS; i++)
+    {
+        if(client[i].session_closed == 1)
+        {
+            strcat(client[i].filename, new_client->filename);
+            client[i].chunk_size = new_client->chunk_size;
+            client[i].session_id = static_count++;
+            client[i].session_closed = 0;
+            sprintf(out, "%s;%u", "HSOSSTP_SIDXX", client[i].session_id);
+            break;
+        }
+    }
 
-    start_server(&server_info, SERVER_PORT);
+    if(i == MAX_CONNECTIONS)
+    {
+        strcpy(out, "HSOSSTP_ERROR;NOS");
+    }
+
+    if(sendto(client[i].socketinfo.sock_fd, out, client[i].chunk_size, 0, (struct sockaddr*) &client[i].socketinfo.addr, sizeof(client[i].socketinfo.addr)) != client[i].chunk_size)
+    {
+        printf("Couldn't send data to client with session id %u", client[i].session_id);
+    }
+}
+
+int main()
+{
+    SocketInfo server;
+    SocketInfo reciever;
+    SessionInfo client;
+    char method[256];
+    SessionInfo client_list[MAX_CONNECTIONS];
+
+    for(int i = 0; i < MAX_CONNECTIONS; i++){
+        client_list[i].session_closed = 1;
+    }
+
+    start_server(&server, SERVER_PORT);
     printf("Server started on port %d\n", SERVER_PORT);
-    listen(server_info.sock_fd, 5);
+    listen(server.sock_fd, 5);
 
     #pragma clang diagnostic push
     #pragma clang diagnostic ignored "-Wmissing-noreturn"
@@ -56,14 +98,19 @@ int main() {
     {
         size_t MAXLINE = 9001;
         char in[MAXLINE];
-        client_info.addr_len = sizeof(client_info.addr);
+        reciever.addr_len = sizeof(reciever.addr);
 
-        ssize_t n = recvfrom(server_info.sock_fd, in, MAXLINE, 0, (struct sockaddr*)& client_info.addr, (socklen_t *)&client_info.addr_len);
+        ssize_t n = recvfrom(server.sock_fd, in, MAXLINE, 0, (struct sockaddr*)& reciever.addr, (socklen_t *)&reciever.addr_len);
 
-       printf("%s\n", in);
-       sscanf(in, "%s;%u;%s", );
+        sscanf(in, "%s;%u;%s", method, &client.chunk_size, client.filename); // NOLINT
 
-       close(client_info.sock_fd);
+        printf("Requested Method: %s\nTransmitting %s with %u bytes per chunk",method, client.filename, client.chunk_size);
+
+        if(strcmp("HSOSSTP_INITX", method) == 0){
+            establish_connection(client_list, &client);
+        }
+
+        close(reciever.sock_fd);
     }
     #pragma clang diagnostic pop
 }
