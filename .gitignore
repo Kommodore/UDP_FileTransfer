@@ -1,0 +1,9 @@
+**/cmake-build-debug/
+**/.idea/
+**/CMakeLists.txt
+
+.idea/
+.git/
+
+.DS_Store
+.gitattributes
