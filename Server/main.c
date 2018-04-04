@@ -5,6 +5,8 @@
 #include <string.h>
 #include <netinet/in.h>
 
+#define SERVER_PORT 8999
+
 typedef struct SocketInfo
 {
     int sock_fd;
@@ -12,15 +14,15 @@ typedef struct SocketInfo
     struct sockaddr_in addr;
 } SocketInfo;
 
-void start_server(SocketInfo *server, const char *dir, int port)
+typedef struct ConnectionInfo
+{
+    char fileSize[256];
+    unsigned long chunk_size;
+} ConnectionInfo;
+
+void start_server(SocketInfo *server, int port)
 {
     int reuse = 1;
-
-    if(chdir(dir) != 0)
-    {
-        printf("Can't start server in \"%s\", is directory existing?\n", dir);
-        exit(1);
-    }
 
     if((server->sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 || setsockopt(server->sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
     {
@@ -40,27 +42,16 @@ void start_server(SocketInfo *server, const char *dir, int port)
     }
 }
 
-int main(int argc, char **argv) {
-    int pid;
-
-    int server_port;
-    char docroot[256];
-
+int main() {
     SocketInfo server_info;
     SocketInfo client_info;
 
-    if(argc < 3)
-    {
-        printf("Usage: httpServ <documentRoot> <port>\n");
-        exit(1);
-    }
-    printf("");
-    strcpy(docroot, argv[1]);
-    server_port = atoi(argv[2]); // NOLINT
-
-    start_server(&server_info, docroot, server_port);
-    printf("Server started in %s on port %d\n", docroot, server_port);
+    start_server(&server_info, SERVER_PORT);
+    printf("Server started on port %d\n", SERVER_PORT);
     listen(server_info.sock_fd, 5);
+
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wmissing-noreturn"
     for(;;)
     {
         size_t MAXLINE = 9001;
@@ -70,21 +61,9 @@ int main(int argc, char **argv) {
         ssize_t n = recvfrom(server_info.sock_fd, in, MAXLINE, 0, (struct sockaddr*)& client_info.addr, (socklen_t *)&client_info.addr_len);
 
        printf("%s\n", in);
+       sscanf(in, "%s;%u;%s", );
 
-        if((pid = fork()) < 0)
-        {
-            printf("Failed to fork()\n");
-            exit(1);
-        }
-        else if(pid == 0)
-        {
-            //NOTE: Hier sind wir definitiv im Kindprozess
-            close(server_info.sock_fd);
-            //handle_connection(&client_info);
-            exit(0);
-        } //NOTE: Hier nicht mehr!
-
-        close(client_info.sock_fd);
+       close(client_info.sock_fd);
     }
-    return 0;
+    #pragma clang diagnostic pop
 }
