@@ -1,6 +1,7 @@
 **/cmake-build-debug/
 **/.idea/
 **/CMakeLists.txt
+**/out/
 
 .idea/
 .git/
@@ -8,3 +9,4 @@
 .DS_Store
 .gitattributes
 /bin/
+**/.iml

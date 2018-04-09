@@ -1,64 +1,108 @@
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.SocketException;
+import java.util.HashMap;
 import java.util.Scanner;
 
 class Server {
-	Server(int port) {
+	private DatagramSocket socket;
+	private HashMap<Integer, ClientData> clients = new HashMap<>();
+	private int total_sessions;
 	
+	Server(int port) throws SocketException {
+		socket = new DatagramSocket(port);
 	}
 	
 	void run() {
-			DatagramSocket socket;
-			byte[] buf = new byte[256];
-			
-			String action;
-			int chunkSize;
-			String param;
-			
+		byte[] buf = new byte[256];
+		
+		String action;
+		int param1;
+		String param2;
+		
+		while(true) {
+			DatagramPacket packet = new DatagramPacket(buf, buf.length);
 			try {
-				socket = new DatagramSocket(8999);
-				
-				while (true) {
-					DatagramPacket packet = new DatagramPacket(buf, buf.length);
+				socket.receive(packet);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+			Scanner recievedPacket = new Scanner(new String(packet.getData()));
+			
+			recievedPacket.useDelimiter(";");
+			action = recievedPacket.next();
+			param1 = recievedPacket.nextInt();
+			param2 = recievedPacket.next().replaceAll("\0", "");
+			
+			switch (action) {
+				case "HSOSSTP_INITX":
+					establishConnection(packet, param1, param2);
+					break;
+				case "HSOSSTP_GETXX":
+					String response;
+					if(!clients.containsKey(param1)){
+						response = "HSOSSTP_ERROR;NOS";
+					} else {
+						response = sendData(param1, Integer.parseInt(param2));
+					}
+					
+					DatagramPacket newPacket = new DatagramPacket(response.getBytes(), response.getBytes().length, packet.getAddress(), packet.getPort());
 					try {
-						socket.receive(packet);
+						socket.send(newPacket);
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
-					
-					//InetAddress address = packet.getAddress();
-					//int port = packet.getPort();
-					//packet = new DatagramPacket(buf, buf.length, address, port);
-					String received = new String(packet.getData());
-					
-					Scanner scanner = new Scanner(received);
-					Scanner dayScanner = new Scanner(scanner.next());
-					
-					dayScanner.useDelimiter(";");
-					action = dayScanner.next();
-					chunkSize = dayScanner.nextInt();
-					param = dayScanner.next();
-					
-					if(action.equals("HSOSSTP_INITX")){
-						System.out.println("Drinne");
-					}
-				
-				/*if (received.equals("end")) {
-					running = false;
-					continue;
-				}
-				try {
-					socket.send(packet);
-				} catch (IOException e) {
-					e.printStackTrace();
-				}*/
-				}
-				
-			} catch (SocketException e) {
-				e.printStackTrace();
+					break;
+				default:
+					System.out.println("Bla123");
+					break;
 			}
 		}
+	}
+	
+	private String sendData(int sessionKey, int chunkNo) {
+		try {
+			FileInputStream fileInputStream = new FileInputStream(clients.get(sessionKey).getFilename());
+			int maxChunkSize = clients.get(sessionKey).getChunkSize();
+			String returnString = "HSOSSTP_DATAX;"+chunkNo+";";
+			
+			if(fileInputStream.skip(chunkNo*(maxChunkSize-returnString.length()-5)) != -1){
+				byte fileContent[] = new byte[maxChunkSize];
+				int readBytes;
+				
+				if((readBytes = fileInputStream.read(fileContent, 0 , maxChunkSize-returnString.length()-5)) != -1){
+					fileInputStream.close();
+					return returnString+";"+readBytes+";"+(new String(fileContent));
+				}
+			}
+			fileInputStream.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		return "HSOSSTP_ERROR;CNF";
+	}
+	
+	private void establishConnection(DatagramPacket packet, int chunkSize, String filename) {
+		String response;
+		File f = new File(filename);
+		
+		if (f.exists() && !f.isDirectory()) {
+			clients.put(total_sessions++, new ClientData(packet.getPort(), chunkSize, packet.getAddress(), filename));
+			response = "HSOSSTP_SIDXX;" + (total_sessions - 1);
+		} else {
+			response = "HSOSSTP_ERROR;FNF";
+		}
+		
+		DatagramPacket newPacket = new DatagramPacket(response.getBytes(), response.getBytes().length, packet.getAddress(), packet.getPort());
+		try {
+			socket.send(newPacket);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 }

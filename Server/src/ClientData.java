@@ -3,12 +3,14 @@ import java.net.InetAddress;
 public class ClientData {
 	private int port;
 	private int chunkSize;
-	private int chunkCount;
-	private int sessionId;
+	private String filename;
 	private InetAddress address;
 	
-	public ClientData(int port, int chunkSize, int sessionId, InetAddress address) {
+	ClientData(int port, int chunkSize, InetAddress address, String filename) {
 		this.port = port;
+		this.chunkSize = chunkSize;
+		this.address = address;
+		this.filename = filename;
 	}
 	
 	public int getPort() {
@@ -19,16 +21,8 @@ public class ClientData {
 		return chunkSize;
 	}
 	
-	public int getChunkCount() {
-		return chunkCount;
-	}
-	
-	public void setChunkCount(int chunkCount) {
-		this.chunkCount = chunkCount;
-	}
-	
-	public int getSessionId() {
-		return sessionId;
+	public String getFilename(){
+		return filename;
 	}
 	
 	public InetAddress getAddress() {
