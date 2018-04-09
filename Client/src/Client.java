@@ -34,7 +34,7 @@ public class Client extends JFrame{
 		
 		byte[] recData = new byte[256];
 		
-		String initConnection = "HSOSSTP;" + chunkSize + ";" + fileName;
+		String initConnection = "HSOSSTP_INITX;" + chunkSize + ";" + fileName;
 		System.out.println("> " + initConnection);
 	
 		
