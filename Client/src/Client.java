@@ -8,7 +8,7 @@ import java.net.UnknownHostException;
 public class Client {
 	public static void main(String args[]) {
 
-		String msg = "Test Data";
+		String msg = "HSOSSTP_INITX;256;myfile.txt";
 		DatagramSocket cSocket;
 		
 		byte[] sendData = new byte[256];
