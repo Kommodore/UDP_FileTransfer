@@ -15,6 +15,7 @@ import java.util.Scanner;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JTextField;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
@@ -140,6 +141,7 @@ public class Client extends JFrame {
 
 		} catch (SocketTimeoutException e) {
 			System.out.println("Timed out!");
+			JOptionPane.showMessageDialog(this, "The Request timed out!", "Time out", JOptionPane.ERROR_MESSAGE);
 		} catch (UnknownHostException e) {
 			e.printStackTrace();
 		} catch (SocketException e) {
