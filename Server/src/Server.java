@@ -72,12 +72,13 @@ class Server {
 			int maxChunkSize = clients.get(sessionKey).getChunkSize();
 			String returnString = "HSOSSTP_DATAX;"+chunkNo+";";
 			
-			if(fileInputStream.skip(chunkNo*(maxChunkSize-returnString.length()-5)) != -1){
+			if(fileInputStream.skip(chunkNo*(maxChunkSize-returnString.length()-4)) != -1){
 				byte fileContent[] = new byte[maxChunkSize-returnString.length()-4];
 				int readBytes;
 				
-				if((readBytes = fileInputStream.read(fileContent, 0 , maxChunkSize-returnString.length()-5)) != -1){
+				if((readBytes = fileInputStream.read(fileContent, 0 , maxChunkSize-returnString.length()-4)) != -1){
 					fileInputStream.close();
+					System.out.println("Sending "+fileContent);
 					return returnString+readBytes+";"+(new String(fileContent));
 				}
 			}
