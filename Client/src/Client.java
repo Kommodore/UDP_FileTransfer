@@ -12,8 +12,7 @@ public class Client {
 	public static void main(String args[]) {
 
 		int testsize = 512;
-		
-		String msg = "Test Data";
+		String msg = "HSOSSTP_INITX;256;myfile.txt";
 		DatagramSocket cSocket;
 		
 		byte[] sendData = new byte[testsize];
