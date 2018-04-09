@@ -38,6 +38,8 @@ class Server {
 			param1 = recievedPacket.nextInt();
 			param2 = recievedPacket.next().replaceAll("\0", "");
 			
+			recievedPacket.close();
+			
 			switch (action) {
 				case "HSOSSTP_INITX":
 					establishConnection(packet, param1, param2);
@@ -71,12 +73,12 @@ class Server {
 			String returnString = "HSOSSTP_DATAX;"+chunkNo+";";
 			
 			if(fileInputStream.skip(chunkNo*(maxChunkSize-returnString.length()-5)) != -1){
-				byte fileContent[] = new byte[maxChunkSize];
+				byte fileContent[] = new byte[maxChunkSize-returnString.length()-5];
 				int readBytes;
 				
 				if((readBytes = fileInputStream.read(fileContent, 0 , maxChunkSize-returnString.length()-5)) != -1){
 					fileInputStream.close();
-					return returnString+";"+readBytes+";"+(new String(fileContent));
+					return returnString+readBytes+";"+(new String(fileContent));
 				}
 			}
 			fileInputStream.close();
