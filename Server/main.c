@@ -1,6 +1,4 @@
 #include <stdio.h>
-//#include <zconf.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -8,129 +6,86 @@
 #include <netinet/in.h>
 
 #define SERVER_PORT 8999
-#define MAX_CONNECTIONS 256
-
-unsigned int static_count = 0;
 
 typedef struct SocketInfo
 {
     int sock_fd;
-    int addr_len;
+    socklen_t addr_len;
     struct sockaddr_in addr;
 } SocketInfo;
 
-typedef struct SessionInfo
+void start_server(SocketInfo *server)
 {
-    int session_id;
-    char filename[256];
-    unsigned int chunk_size;
-    unsigned int session_closed;
-    SocketInfo socketinfo;
-} SessionInfo;
-
-void start_server(SocketInfo *server, int port)
-{
-    int reuse = 1;
-
-    if((server->sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 || setsockopt(server->sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+    if((server->sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
-        printf("Cant initialize socket\n");
+        printf("Could not open UDP-Socket!\n");
         exit(1);
     }
-
-    memset((void*)&server->addr, '\0', sizeof(server->addr));
-    server->addr_len = sizeof(server->addr);
+    memset ((void *)&server->addr, '\0', sizeof(server->addr));
     server->addr.sin_family = AF_INET;
-    server->addr.sin_addr.s_addr = htonl(INADDR_ANY); // NOLINT
-    server->addr.sin_port = htons(port); // NOLINT
-    if(bind(server->sock_fd, (struct sockaddr*) &server->addr, sizeof(server->addr)) < 0)
+    server->addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    server->addr.sin_port = htons(SERVER_PORT);
+    server->addr_len = sizeof(server->addr);
+    if (bind (server->sock_fd, (struct sockaddr *)&server->addr, server->addr_len) < 0 )
     {
-        printf("Can't open socket on %d, is socket already in use?\n", port);
+        printf("Could not bind local address!\n");
         exit(1);
     }
+    printf ("UDP Server: ready ...\n");
 }
 
-void establish_connection(SessionInfo* client, SessionInfo* new_client)
+int main(int argc, char** argv)
 {
-    char out[256];
-    int i;
+    int bytes_recv;
+    char in[256];
+    char out[] = "Message recived!\0";
 
-    printf("Connection Established!");
+    char buffer_one[256];
+    char buffer_two[256];
+    char buffer_three[256];
 
-    for(i = 0; i < MAX_CONNECTIONS; i++)
-    {
-        if(client[i].session_closed == 1)
-        {
-            strcat(client[i].filename, new_client->filename);
-            client[i].chunk_size = new_client->chunk_size;
-            client[i].session_id = static_count++;
-            client[i].session_closed = 0;
-            sprintf(out, "%s;%u", "HSOSSTP_SIDXX", client[i].session_id);
-            break;
-        }
-    }
 
-    if(i == MAX_CONNECTIONS)
-    {
-        strcpy(out, "HSOSSTP_ERROR;NOS");
-    }
+    SocketInfo server_info;
+    SocketInfo client_info;
 
-    if(sendto(client[i].socketinfo.sock_fd, out, client[i].chunk_size, 0, (struct sockaddr*) &client[i].socketinfo.addr, sizeof(client[i].socketinfo.addr)) != client[i].chunk_size)
-    {
-        printf("Couldn't send data to client with session id %u", client[i].session_id);
-    }
-}
+    start_server(&server_info);
 
-int main()
-{
-    SocketInfo server;
-    SocketInfo reciever;
-    SessionInfo client;
-    char method[256];
-    char number[256];
-    SessionInfo client_list[MAX_CONNECTIONS];
-
-    for(int i = 0; i < MAX_CONNECTIONS; i++){
-        client_list[i].session_closed = 1;
-    }
-
-    start_server(&server, SERVER_PORT);
-    printf("Server started on port %d\n", SERVER_PORT);
-    listen(server.sock_fd, 5);
-
-    #pragma clang diagnostic push
-    #pragma clang diagnostic ignored "-Wmissing-noreturn"
     for(;;)
     {
-        size_t MAXLINE = 9001;
-        char in[MAXLINE];
-        reciever.addr_len = sizeof(reciever.addr);
+        memset(in, '\0', sizeof(in));
+        memset(out, '\0', sizeof(out));
 
-        unsigned int temp;
+        memset(buffer_one, '\0', sizeof(out));
+        memset(buffer_two, '\0', sizeof(out));
+        memset(buffer_three, '\0', sizeof(out));
 
-        memset(in, '\0', MAXLINE);
-        memset(method, '\0', 256);
-        memset(number, '\0', 256);
 
-        ssize_t n = recvfrom(server.sock_fd, in, MAXLINE, 0, (struct sockaddr*)& reciever.addr, (socklen_t *)&reciever.addr_len);
+        client_info.addr_len = sizeof(client_info.addr);
 
-        sscanf(in, "%[^;];%[^;];%s", method, number, client.filename); // NOLINT
-
-        client.chunk_size = atoi(number);
-
-        printf("FULLMSG: %s\n", in);
-
-        printf("METHOD: %s\n", method);
-        printf("CHUNKSIZE: %d\n", client.chunk_size);
-        printf("FILENAME: %s\nCHUNKSIZE: %d", client.filename, client.chunk_size);
-
-        printf("Hello World");
-        if(strcmp("HSOSSTP_INITX", method) == 0)
+        if((bytes_recv = recvfrom(server_info.sock_fd, in, 256, 0, (struct sockaddr *)&client_info.addr, &client_info.addr_len)) < 0)
         {
-            establish_connection(client_list, &client);
+            printf("An Error occurred while reading!\n");
+            exit(1);
         }
 
-        close(reciever.sock_fd);
+        printf("MSG: %s\n", in);
+
+        sprintf(in, "%s %s %s", buffer_one, buffer_two, buffer_three);
+
+        if(strcmp(buffer_three, "myfile.txt") == 0)
+        {
+            printf("Worked!\n");
+        }
+
+        printf("Out: %s", out);
+
+        if((sendto(server_info.sock_fd, out, strlen(out), 0, (struct sockaddr *)&client_info.addr, client_info.addr_len)) < 0)
+        {
+            printf("An Error occurred while sending!\n");
+            exit(1);
+        }
+
     }
-    #pragma clang diagnostic pop
+
+    return 0;
 }
