@@ -6,14 +6,20 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 
 public class Client {
+	
+	
+	
 	public static void main(String args[]) {
 
+		int testsize = 512;
+		
 		String msg = "Test Data";
 		DatagramSocket cSocket;
 		
-		byte[] sendData = new byte[256];
+		byte[] sendData = new byte[testsize];
 		
 		try {
+			
 			InetAddress ipAddr = InetAddress.getByName("127.0.0.1");
 			cSocket = new DatagramSocket();
 			
@@ -21,6 +27,7 @@ public class Client {
 			
 			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddr, 8999);
 			cSocket.send(sendPacket);
+			
 			
 			cSocket.close();
 			
