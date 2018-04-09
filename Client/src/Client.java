@@ -1,9 +1,9 @@
-import java.awt.Dimension;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -13,92 +13,53 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Scanner;
 
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
-import javax.swing.JTextField;
-import javax.swing.UIManager;
-import javax.swing.UnsupportedLookAndFeelException;
-
-public class Client extends JFrame {
-
-	private static final long serialVersionUID = 1L;
+public class Client implements ActionListener {
 
 	private DatagramSocket cSocket;
+	private ClientWindow window;
 
-	// JLabel label_ipAddr, labl_port, label_chunkSize, label_fileName;
-	JTextField text_ipAddr, text_port, text_chunkSize, text_fileName;
-	JButton submit;
+	private String sessionKey;
 
-	public Client(String serverAddr, int chunkSize, String fileName) {
-		initWindow();
+	public Client() {
+		window = new ClientWindow();
+		window.addCustomActionListener(this);
 	}
 
-	private void initWindow() {
-		GridBagLayout gbl = new GridBagLayout();
-		GridBagConstraints c = new GridBagConstraints();
+	//NOTE: Das ist nur referenz für mich
+	private void readAndWriteFile() {
+		File in = new File("Client/src/myfile.txt");
+		File out = new File("Client/src/out.txt");
 
-		try {
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException
-				| UnsupportedLookAndFeelException e) {
-			e.printStackTrace();
+		FileInputStream fis;
+		FileOutputStream fos;
+		byte[] test = new byte[256];
+
+		if (in.exists() && out.exists()) {
+			System.out.println("Ist Da!");
 		}
 
-		this.setTitle("Client");
-		this.setLayout(gbl);
-		this.setResizable(false);
-		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		try {
+			fis = new FileInputStream(in);
+			fos = new FileOutputStream(out, true);
 
-		// add buttons
-		text_ipAddr = new JTextField("127.0.0.1");
-		text_ipAddr.setPreferredSize(new Dimension(300, 40));
-		c.gridx = 0;
-		c.gridy = 0;
-		c.insets = new Insets(20, 20, 0, 20);
-		this.add(text_ipAddr, c);
+			int k = fis.read(test);
 
-		text_port = new JTextField("8999");
-		text_port.setPreferredSize(new Dimension(300, 40));
-		c.gridx = 0;
-		c.gridy = 1;
-		c.insets = new Insets(20, 20, 0, 20);
-		this.add(text_port, c);
+			fos.write(test, 0, k);
+			fos.write(test, 0, k);
+			fos.write(test, 0, k);
+			fos.write(test, 0, k);
 
-		text_chunkSize = new JTextField("256");
-		text_chunkSize.setPreferredSize(new Dimension(300, 40));
-		c.gridx = 0;
-		c.gridy = 2;
-		c.insets = new Insets(20, 20, 0, 20);
-		this.add(text_chunkSize, c);
+			fis.close();
+			fos.close();
 
-		text_fileName = new JTextField("myfile.txt");
-		text_fileName.setPreferredSize(new Dimension(300, 40));
-		c.gridx = 0;
-		c.gridy = 3;
-		c.insets = new Insets(20, 20, 0, 20);
-		this.add(text_fileName, c);
-
-		submit = new JButton("Submit");
-		submit.setPreferredSize(new Dimension(300, 40));
-		submit.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				startFileTransfer(text_ipAddr.getText(), Integer.parseInt(text_port.getText()),
-						Integer.parseInt(text_chunkSize.getText()), text_fileName.getText());
-			}
-		});
-		c.gridx = 0;
-		c.gridy = 4;
-		c.insets = new Insets(20, 20, 20, 20);
-		this.add(submit, c);
-
-		this.pack();
-		this.setLocationRelativeTo(null);
-		this.setVisible(true);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
-	private void startFileTransfer(String serverAddr, int port, int chunkSize, String fileName) {
+	public void startFileTransfer(String serverAddr, int port, int chunkSize, String fileName) {
 		String action, param;
 		InetAddress ipAddr;
 
@@ -111,8 +72,7 @@ public class Client extends JFrame {
 			ipAddr = InetAddress.getByName(serverAddr);
 			cSocket = new DatagramSocket();
 
-			DatagramPacket sendPacket = new DatagramPacket(initConnection.getBytes(), initConnection.getBytes().length,
-					ipAddr, port);
+			DatagramPacket sendPacket = new DatagramPacket(initConnection.getBytes(), initConnection.getBytes().length, ipAddr, port);
 			cSocket.send(sendPacket);
 
 			DatagramPacket recPacket = new DatagramPacket(recData, recData.length);
@@ -127,24 +87,49 @@ public class Client extends JFrame {
 			action = sc.next();
 			param = sc.next();
 			sc.close();
-			
-			switch (action) {
-			case "HSOSSTP_ERROR":
-				// FILE NOT FOUND
-				System.out.println("Param:" + param);
-				break;
 
-			default:
-				System.out.println(recString);
-				break;
+			switch (action) {
+				case "HSOSSTP_ERROR":
+					switch (param) {
+						case "FNF":
+							System.out.println("FILE NOT FOUND!");
+							window.showError("The requested file was not found!", "FNF");
+							break;
+						case "CNF":
+							System.out.println("CHUNK NOT FOUND!");
+							window.showError("The requested chunk was not found!", "CNF");
+							break;
+						case "NOS":
+							System.out.println("NO SESSION!");
+							window.showError("Your session does not exist!", "NOS");
+							break;
+						default:
+							System.out.println("UNKNOWN ERROR!");
+							window.showError("An unkown error has occurred!", "UNKNOWN");
+							break;
+					}
+					break;
+				case "HSOSSTP_SIDXX":
+					this.sessionKey = param;
+					retrieveData();
+					break;
+
+				default:
+					System.out.println("UNKNOWN ACTION!");
+					window.showError("An unkown action was sent!", "UNKNOWN");
+					break;
 			}
 
 		} catch (SocketTimeoutException e) {
-			System.out.println("Timed out!");
-			JOptionPane.showMessageDialog(this, "The Request timed out!", "Time out", JOptionPane.ERROR_MESSAGE);
+			System.out.println("TIMED OUT!");
+			window.showError("The request timed out!", "TIME OUT");
 		} catch (UnknownHostException e) {
+			System.out.println("UNKNOWN HOST!");
+			window.showError("The IP address of the host could not be determined!", "UNKNOWN HOST");
 			e.printStackTrace();
 		} catch (SocketException e) {
+			System.out.println("SOCKET ERROR!");
+			window.showError("Could not create or access the socket!", "SOCKET ERROR");
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -153,8 +138,27 @@ public class Client extends JFrame {
 		cSocket.close();
 	}
 
+	private void retrieveData(){
+		System.out.println("SESSIONKEY: " + this.sessionKey);
+		
+		
+		DatagramPacket recPacket = new DatagramPacket(buf, length)
+	}
+	
+	@Override
+	public void actionPerformed(ActionEvent e) {
+		if (e.getActionCommand().equals("submit")) {
+			try {
+				this.startFileTransfer(window.getIPAddr(), window.getPort(), window.getChunkSize(), window.getFileName());
+			} catch (NumberFormatException nfe) {
+				System.out.println("Could not read input!");
+				window.showError("Could not read input!", "False Input");
+			}
+		}
+	}
+
 	public static void main(String args[]) {
-		Client client = new Client("127.0.0.1", 256, "myfile.txt");
+		new Client();
 	}
 
 }
