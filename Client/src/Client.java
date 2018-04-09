@@ -137,8 +137,9 @@ public class Client implements ActionListener {
 		}
 		
 		while(true) {
+			System.out.println("Asking...");
 			try {
-				getDataMsg = "HSOSSTP_GETXX;" + this.sessionKey + ";" + this.currentChunk;
+				getDataMsg = "HSOSSTP_GETXX;" + this.sessionKey + ";" + this.currentChunk+";";
 				send = new DatagramPacket(getDataMsg.getBytes(), getDataMsg.getBytes().length, this.serverAddr, this.port);
 				cSocket.send(send);
 				recv = new DatagramPacket(recvData, this.chunkSize);
@@ -157,7 +158,7 @@ public class Client implements ActionListener {
 				}
 				
 				if(recv.getLength() < 256) {
-					System.out.println("DONE");
+					System.out.println("DONE with just "+recv.getLength()+" bytes.");
 					return;
 				}
 				
