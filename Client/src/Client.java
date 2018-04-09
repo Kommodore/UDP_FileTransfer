@@ -15,118 +15,46 @@ import java.util.Scanner;
 
 public class Client implements ActionListener {
 
-	private DatagramSocket cSocket;
 	private ClientWindow window;
 
-	private String sessionKey;
+	private DatagramSocket cSocket;
+	private InetAddress serverAddr;
+	private String sessionKey, fileName;
+	private int port, chunkSize, currentChunk;
+	
+	private File file;
+	private FileOutputStream fos;
 
 	public Client() {
 		window = new ClientWindow();
 		window.addCustomActionListener(this);
 	}
 
-	//NOTE: Das ist nur referenz für mich
-	private void readAndWriteFile() {
-		File in = new File("Client/src/myfile.txt");
-		File out = new File("Client/src/out.txt");
+	public void startFileTransfer() {
+		String recvString;
+		byte[] recvData = new byte[this.chunkSize];
 
-		FileInputStream fis;
-		FileOutputStream fos;
-		byte[] test = new byte[256];
-
-		if (in.exists() && out.exists()) {
-			System.out.println("Ist Da!");
-		}
-
-		try {
-			fis = new FileInputStream(in);
-			fos = new FileOutputStream(out, true);
-
-			int k = fis.read(test);
-
-			fos.write(test, 0, k);
-			fos.write(test, 0, k);
-			fos.write(test, 0, k);
-			fos.write(test, 0, k);
-
-			fis.close();
-			fos.close();
-
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	public void startFileTransfer(String serverAddr, int port, int chunkSize, String fileName) {
-		String action, param;
-		InetAddress ipAddr;
-
-		byte[] recData = new byte[256];
+		DatagramPacket send, recv;
 
 		String initConnection = "HSOSSTP_INITX;" + chunkSize + ";" + fileName;
 		System.out.println("> " + initConnection);
 
 		try {
-			ipAddr = InetAddress.getByName(serverAddr);
 			cSocket = new DatagramSocket();
 
-			DatagramPacket sendPacket = new DatagramPacket(initConnection.getBytes(), initConnection.getBytes().length, ipAddr, port);
-			cSocket.send(sendPacket);
-
-			DatagramPacket recPacket = new DatagramPacket(recData, recData.length);
+			send = new DatagramPacket(initConnection.getBytes(), initConnection.getBytes().length, this.serverAddr, this.port);
+			cSocket.send(send);
+			recv = new DatagramPacket(recvData, this.chunkSize);
 			cSocket.setSoTimeout(5000);
-			cSocket.receive(recPacket);
+			cSocket.receive(recv);
+			cSocket.setSoTimeout(0);
 
-			String recString = new String(recPacket.getData()).replaceAll("\0", "");
-			System.out.println(recString);
-
-			Scanner sc = new Scanner(recString);
-			sc.useDelimiter(";");
-			action = sc.next();
-			param = sc.next();
-			sc.close();
-
-			switch (action) {
-				case "HSOSSTP_ERROR":
-					switch (param) {
-						case "FNF":
-							System.out.println("FILE NOT FOUND!");
-							window.showError("The requested file was not found!", "FNF");
-							break;
-						case "CNF":
-							System.out.println("CHUNK NOT FOUND!");
-							window.showError("The requested chunk was not found!", "CNF");
-							break;
-						case "NOS":
-							System.out.println("NO SESSION!");
-							window.showError("Your session does not exist!", "NOS");
-							break;
-						default:
-							System.out.println("UNKNOWN ERROR!");
-							window.showError("An unkown error has occurred!", "UNKNOWN");
-							break;
-					}
-					break;
-				case "HSOSSTP_SIDXX":
-					this.sessionKey = param;
-					retrieveData();
-					break;
-
-				default:
-					System.out.println("UNKNOWN ACTION!");
-					window.showError("An unkown action was sent!", "UNKNOWN");
-					break;
-			}
+			recvString = new String(recv.getData()).replaceAll("\0", "");
+			processMsg(recvString);
 
 		} catch (SocketTimeoutException e) {
 			System.out.println("TIMED OUT!");
 			window.showError("The request timed out!", "TIME OUT");
-		} catch (UnknownHostException e) {
-			System.out.println("UNKNOWN HOST!");
-			window.showError("The IP address of the host could not be determined!", "UNKNOWN HOST");
-			e.printStackTrace();
 		} catch (SocketException e) {
 			System.out.println("SOCKET ERROR!");
 			window.showError("Could not create or access the socket!", "SOCKET ERROR");
@@ -134,25 +62,130 @@ public class Client implements ActionListener {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-
+		
 		cSocket.close();
 	}
 
-	private void retrieveData(){
-		System.out.println("SESSIONKEY: " + this.sessionKey);
+	private boolean processMsg(String recvString) {
+		boolean result = true;
+		String action, param1, param2, data;
+		Scanner sc = new Scanner(recvString);
+		sc.useDelimiter(";");
+		action = sc.next();
 		
+		if(action.equals("HSOSSTP_ERROR")) {
+			param1 = sc.next();
+			switch (param1) {
+				case "FNF":
+					System.out.println("FILE NOT FOUND!");
+					window.showError("The requested file was not found!", "FNF");
+					break;
+				case "CNF":
+					System.out.println("CHUNK NOT FOUND!");
+					window.showError("The requested chunk was not found!", "CNF");
+					break;
+				case "NOS":
+					System.out.println("NO SESSION!");
+					window.showError("Your session does not exist!", "NOS");
+					break;
+				default:
+					System.out.println("UNKNOWN ERROR!");
+					window.showError("An unkown error has occurred!", "UNKNOWN");
+					break;
+			}
+			result = false;
+		}else if(action.equals("HSOSSTP_SIDXX")) {
+			param1 = sc.next();
+			this.sessionKey = param1;
+			this.retrieveData();
+		}else if(action.equals("HSOSSTP_DATAX")) {
+			param1 = sc.next();
+			param2 = sc.next();
+			
+			data = sc.next();
+			
+			try {
+				this.fos.write(data.getBytes());
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+		}else {
+			System.out.println("UNKNOWN ACTION!");
+			window.showError("An unkown action was sent!", "UNKNOWN");
+			result =  false;
+		}
 		
-		DatagramPacket recPacket = new DatagramPacket(buf, length)
+		sc.close();
+		return result;
 	}
-	
+
+	private void retrieveData() {
+		String getDataMsg, data;
+		byte[] recvData = new byte[this.chunkSize];
+		
+		int tries = 0;
+		
+		DatagramPacket send, recv;
+		
+		this.file = new File("1" + this.fileName);
+		try {
+			file.createNewFile();
+			this.fos = new FileOutputStream(file, true);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		
+		while(true) {
+			try {
+				getDataMsg = "HSOSSTP_GETXX;" + this.sessionKey + ";" + this.currentChunk;
+				send = new DatagramPacket(getDataMsg.getBytes(), getDataMsg.getBytes().length, this.serverAddr, this.port);
+				cSocket.send(send);
+				recv = new DatagramPacket(recvData, this.chunkSize);
+				cSocket.receive(recv);
+				
+				data = new String(recv.getData()).replaceAll("\0", "");
+				
+				if(!processMsg(data)) {
+					--this.currentChunk;
+					++tries;
+					if(tries >= 5) {
+						System.out.println("Could not retrieve data!");
+						window.showError("Could not retrieve data!", "DATA ERROR");
+						return;
+					}
+				}
+				
+				if(recv.getLength() < 256) {
+					System.out.println("DONE");
+					return;
+				}
+				
+				++this.currentChunk;
+				
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getActionCommand().equals("submit")) {
 			try {
-				this.startFileTransfer(window.getIPAddr(), window.getPort(), window.getChunkSize(), window.getFileName());
+				this.serverAddr = InetAddress.getByName(window.getIPAddr());
+				this.fileName = window.getFileName();
+				this.port = window.getPort();
+				this.chunkSize = window.getChunkSize();
+
+				this.startFileTransfer();
 			} catch (NumberFormatException nfe) {
 				System.out.println("Could not read input!");
 				window.showError("Could not read input!", "False Input");
+			} catch (UnknownHostException uhe) {
+				System.out.println("UNKNOWN HOST!");
+				window.showError("The IP address of the host could not be determined!", "UNKNOWN HOST");
+				uhe.printStackTrace();
 			}
 		}
 	}
