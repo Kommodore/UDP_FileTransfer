@@ -80,7 +80,10 @@ class Server {
 				if ((readBytes = fileInputStream.read(fileContent, 0, maxChunkSize - returnString.length() - 4)) != -1) {
 					fileInputStream.close();
 					clients.get(sessionKey).addBytesRead(readBytes);
-					return returnString + (readBytes+returnString.length() + 4) + ";" + (new String(fileContent));
+					return returnString + (readBytes+returnString.length() + String.valueOf(readBytes).length()+1) + ";" + (new String(fileContent));
+				} else {
+					fileInputStream.close();
+					return returnString+returnString.length()+";";
 				}
 			}
 			fileInputStream.close();
