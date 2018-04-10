@@ -50,6 +50,7 @@ class Server {
 						response = "HSOSSTP_ERROR;NOS";
 					} else {
 						response = sendData(param1, Integer.parseInt(param2));
+						System.out.println("Sending "+response);
 					}
 
 					DatagramPacket newPacket = new DatagramPacket(response.getBytes(), response.getBytes().length, packet.getAddress(), packet.getPort());
@@ -78,10 +79,8 @@ class Server {
 
 				if ((readBytes = fileInputStream.read(fileContent, 0, maxChunkSize - returnString.length() - 4)) != -1) {
 					fileInputStream.close();
-					System.out.println("Read Length: " + (maxChunkSize - returnString.length() - 4));
-					System.out.println("Sending: " + fileContent + "\tRead Bytes: " + (readBytes));
 					clients.get(sessionKey).addBytesRead(readBytes);
-					return returnString + readBytes + ";" + (new String(fileContent));
+					return returnString + (readBytes+returnString.length() + 4) + ";" + (new String(fileContent));
 				}
 			}
 			fileInputStream.close();

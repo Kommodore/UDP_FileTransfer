@@ -162,7 +162,7 @@ public class Client implements ActionListener {
 					}
 				}
 
-				if (recvChunkSize < chunkSize - recvChunkSize) {
+				if (recvChunkSize < chunkSize) {
 					System.out.println("DONE with just " + recvChunkSize + " bytes.");
 					fos.flush();
 					fos.close();
