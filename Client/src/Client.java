@@ -1,8 +1,6 @@
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -20,14 +18,16 @@ public class Client implements ActionListener {
 	private DatagramSocket cSocket;
 	private InetAddress serverAddr;
 	private String sessionKey, fileName;
-	private int port, chunkSize, currentChunk;
-	
+	private int port, chunkSize, currentChunk, recvChunkSize, recvHeaderSize, currentFile;
+
 	private File file;
 	private FileOutputStream fos;
 
 	public Client() {
 		window = new ClientWindow();
 		window.addCustomActionListener(this);
+
+		currentFile = 1;
 	}
 
 	public void startFileTransfer() {
@@ -62,7 +62,7 @@ public class Client implements ActionListener {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
+
 		cSocket.close();
 	}
 
@@ -72,50 +72,54 @@ public class Client implements ActionListener {
 		Scanner sc = new Scanner(recvString);
 		sc.useDelimiter(";");
 		action = sc.next();
-		
-		if(action.equals("HSOSSTP_ERROR")) {
+
+		if (action.equals("HSOSSTP_ERROR")) {
 			param1 = sc.next();
+			
 			switch (param1) {
 				case "FNF":
-					System.out.println("FILE NOT FOUND!");
+					System.out.println("FILE NOT FOUND!\t" + param1);
 					window.showError("The requested file was not found!", "FNF");
 					break;
 				case "CNF":
-					System.out.println("CHUNK NOT FOUND!");
+					System.out.println("CHUNK NOT FOUND\t" + param1);
 					window.showError("The requested chunk was not found!", "CNF");
 					break;
 				case "NOS":
-					System.out.println("NO SESSION!");
+					System.out.println("NO SESSION!\t" + param1);
 					window.showError("Your session does not exist!", "NOS");
 					break;
 				default:
-					System.out.println("UNKNOWN ERROR!");
+					System.out.println("UNKNOWN ERROR!\t" + param1);
 					window.showError("An unkown error has occurred!", "UNKNOWN");
 					break;
 			}
 			result = false;
-		}else if(action.equals("HSOSSTP_SIDXX")) {
+		} else if (action.equals("HSOSSTP_SIDXX")) {
 			param1 = sc.next();
 			this.sessionKey = param1;
 			this.retrieveData();
-		}else if(action.equals("HSOSSTP_DATAX")) {
+		} else if (action.equals("HSOSSTP_DATAX")) {
 			param1 = sc.next();
 			param2 = sc.next();
-			
+
 			data = sc.next();
-			
+
+			recvChunkSize = Integer.parseInt(param2);
+			System.out.println("Bytes recieved: " + recvChunkSize);
+
 			try {
 				this.fos.write(data.getBytes());
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-			
-		}else {
+
+		} else {
 			System.out.println("UNKNOWN ACTION!");
 			window.showError("An unkown action was sent!", "UNKNOWN");
-			result =  false;
+			result = false;
 		}
-		
+
 		sc.close();
 		return result;
 	}
@@ -123,47 +127,50 @@ public class Client implements ActionListener {
 	private void retrieveData() {
 		String getDataMsg, data;
 		byte[] recvData = new byte[this.chunkSize];
-		
+
 		int tries = 0;
-		
+
 		DatagramPacket send, recv;
-		
-		this.file = new File("1" + this.fileName);
+
+		this.file = new File(currentFile + this.fileName);
 		try {
 			file.createNewFile();
 			this.fos = new FileOutputStream(file, true);
 		} catch (IOException e1) {
 			e1.printStackTrace();
 		}
-		
-		while(true) {
+		++currentFile;
+
+		while (true) {
 			System.out.println("Asking...");
 			try {
-				getDataMsg = "HSOSSTP_GETXX;" + this.sessionKey + ";" + this.currentChunk+";";
+				getDataMsg = "HSOSSTP_GETXX;" + this.sessionKey + ";" + this.currentChunk + ";";
 				send = new DatagramPacket(getDataMsg.getBytes(), getDataMsg.getBytes().length, this.serverAddr, this.port);
 				cSocket.send(send);
 				recv = new DatagramPacket(recvData, this.chunkSize);
 				cSocket.receive(recv);
-				
+
 				data = new String(recv.getData()).replaceAll("\0", "");
-				
-				if(!processMsg(data)) {
+
+				if (!processMsg(data)) {
 					--this.currentChunk;
 					++tries;
-					if(tries >= 5) {
+					if (tries >= 5) {
 						System.out.println("Could not retrieve data!");
 						window.showError("Could not retrieve data!", "DATA ERROR");
 						return;
 					}
 				}
-				
-				if(recv.getLength() < 256) {
-					System.out.println("DONE with just "+recv.getLength()+" bytes.");
+
+				if (recvChunkSize < chunkSize - recvChunkSize) {
+					System.out.println("DONE with just " + recvChunkSize + " bytes.");
+					fos.flush();
+					fos.close();
 					return;
 				}
-				
+
 				++this.currentChunk;
-				
+
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
